@@ -1,24 +1,9 @@
-import { Router } from "express";
-const router = Router();
+import { Router } from 'express'
+import controller from '../controllers/users.js'
 
-/* GET all users. */
-router.get("/", function (req, res) {
-  res.send("Fetched all users");
-});
+const router = Router()
 
-/* POST a user. */
-router.post("/", function (req, res) {
-  res.send("Created a user");
-});
+router.post('/', controller.create)
+router.get('/', controller.retrieveAll)
 
-/* PATCH a user. */
-router.patch("/", function (req, res) {
-  res.send("Updated a user");
-});
-
-/* DELETE a user. */
-router.delete("/", function (req, res) {
-  res.send("Deleted a user");
-});
-
-export default router;
+export default router
