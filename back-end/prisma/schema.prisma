@@ -16,7 +16,7 @@ datasource db {
 model User {
   id          Int           @id @default(autoincrement())
   fullname    String        // Nome completo do usuário
-  username    String        // Nome de usuário
+  username    String        @unique // Nome de usuário
   password    String        // Senha
   is_admin    Boolean       @default(false)
 }
