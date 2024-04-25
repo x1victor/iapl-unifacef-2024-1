@@ -106,6 +106,7 @@ controller.delete = async function (req, res) {
 }
 
 controller.login = async function(req, res) {
+
   try {
     // Busca o usuário pelo username
     const user = await prisma.user.findUnique({

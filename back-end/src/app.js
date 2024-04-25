@@ -12,6 +12,12 @@ import indexRouter from "./routes/index.js";
 
 const app = express();
 
+import cors from 'cors'
+app.use(cors({
+  origin: process.env.FRONT_END_URL.split(','),
+  credentials: true
+}))
+
 app.use(logger("dev"));
 app.use(json());
 app.use(urlencoded({ extended: false }));

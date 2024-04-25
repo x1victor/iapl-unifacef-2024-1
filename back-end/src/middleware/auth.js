@@ -15,6 +15,7 @@ export default function(req, res, next) {
   // próximo middleware sem verificar a autenticação
   for(let route of bypassRoutes) {
     if(route.url === req.url && route.method === req.method) {
+      console.log(`Rota ${route.url}, método ${route.method} não autenticados por exceção`)
       next()
       return
     }
@@ -26,7 +27,10 @@ export default function(req, res, next) {
 
   // O header não existe, o token não foi passado:
   // HTTP 403: Forbidden
-  if(! authHeader) return res.status(403).end()
+  if(! authHeader) {
+    console.error('ERRO: não autenticado por falta de token')
+    return res.status(403).end()
+  }
 
   // O header Authorization é enviado como uma string
   // Bearer: XXXX
@@ -40,7 +44,10 @@ export default function(req, res, next) {
 
     // Token inválido ou expirado
     // HTTP 403: Forbidden
-    if(error) return res.status(403).end()
+    if(error) {
+      console.error('ERRO: token inválido ou expirado')
+      return res.status(403).end()
+    }
 
     /*
       Se chegamos até aqui, o token está OK e temos as informações
