@@ -20,24 +20,38 @@ export default function(req, res, next) {
       return
     }
   }
-
+  
   // Para todas as demais rotas, é necessário que o token tenha
-  // sido enviado no cabeçalho Authorization
-  const authHeader = req.headers['authorization']
+  // sido enviado em um cookie ou no cabeçalho Authorization
 
-  // O header não existe, o token não foi passado:
-  // HTTP 403: Forbidden
-  if(! authHeader) {
-    console.error('ERRO: não autenticado por falta de token')
-    return res.status(403).end()
+  let token = null
+
+  console.log({ COOKIE: req.cookies[process.env.AUTH_COOKIE_NAME] })
+
+  // 1. PROCURA O TOKEN EM UM COOKIE
+  token = req.cookies[process.env.AUTH_COOKIE_NAME]
+
+  // 2. SE O TOKEN NÃO FOI ENCONTRADO NO COOKIE, PROCURA NO HEADER
+  // DE AUTORIZAÇÃO
+  if(! token) {
+    const authHeader = req.headers['authorization']
+
+    // O header não existe, o token não foi passado:
+    // HTTP 403: Forbidden
+    if(! authHeader) {
+      console.error('ERRO: não autenticado por falta de cookie ou cabeçalho de autorização')
+      return res.status(403).end()
+    }
+  
+    // O header Authorization é enviado como uma string
+    // Bearer: XXXX
+    // onde XXXX é o token. Portanto, para extrair o token,
+    // precisamos recortar a string no ponto onde há um espaço
+    // e pegar somente a a segunda parte
+    const [ , _token] = authHeader.split(' ')
+    
+    token = _token
   }
-
-  // O header Authorization é enviado como uma string
-  // Bearer: XXXX
-  // onde XXXX é o token. Portanto, para extrair o token,
-  // precisamos recortar a string no ponto onde há um espaço
-  // e pegar somente a a segunda parte
-  const [ , token] = authHeader.split(' ')
 
   // Valida o token
   jwt.verify(token, process.env.TOKEN_SECRET, (error, user) => {

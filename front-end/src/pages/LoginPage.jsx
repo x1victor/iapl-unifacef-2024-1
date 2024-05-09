@@ -16,11 +16,11 @@ export default function LoginPage() {
     
     try {
       // Dispara uma requisição para o back-end
-      const result = await myfetch.post('/users/login', { username, password })
+      await myfetch.post('/users/login', { username, password })
 
       // Se o login tiver sido bem-sucedido, o token estará no result
       // Vamos armazená-lo (POR ENQUANTO) no localStorage (INSEGURO!)
-      window.localStorage.setItem(import.meta.env.VITE_AUTH_TOKEN_NAME, result.token)
+      // window.localStorage.setItem(import.meta.env.VITE_AUTH_TOKEN_NAME, result.token)
 
       // Vai para a página inicial
       navigate('/')
