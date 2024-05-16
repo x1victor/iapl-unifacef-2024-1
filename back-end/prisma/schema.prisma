@@ -19,4 +19,12 @@ model User {
   username    String        @unique // Nome de usuário
   password    String        // Senha
   is_admin    Boolean       @default(false)
+  sessions    Session[]
+}
+
+model Session {
+  sessid      String        @id               // id da sessão
+  user_id     Int                             // id do usuário
+  user        User          @relation(fields: [user_id], references: [id])
+  start_time  DateTime      @default(now())   // data/hora de início da sessão
 }
