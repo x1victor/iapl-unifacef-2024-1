@@ -1,7 +1,7 @@
 import prisma from '../database/client.js'
 import bcrypt from 'bcrypt'
 import { uuidv7 } from 'uuidv7'
-import cryptr from '../lib/cryptr.js'
+import Cryptr from 'cryptr'
 
 const controller = {}     // Objeto vazio
 
@@ -127,6 +127,7 @@ controller.login = async function(req, res) {
 
     // Forma o cookie para enviar ao front-end
     // O sessid é incluído no cookie de forma criptografada
+    const cryptr = new Cryptr(process.env.TOKEN_SECRET)
     res.cookie(process.env.AUTH_COOKIE_NAME, cryptr.encrypt(sessid), {
       httpOnly: true,   // O cookie ficará inacessível para JS no front-end
       secure: true,

@@ -1,7 +1,7 @@
-import cryptr from '../lib/cryptr.js'
+import Cryptr from 'cryptr'
 import prisma from '../database/client.js'
 
-export default function(req, res, next) {
+export default async function(req, res, next) {
 
   // As rotas que eventualmente não necessitarem
   // de autenticação devem ser colocadas no
@@ -59,6 +59,7 @@ export default function(req, res, next) {
   
   // Tenta descriptografar a sessid
   try {
+    const cryptr = new Cryptr(process.env.TOKEN_SECRET)
     sessid = cryptr.decrypt(cryptoSessid)
   }
   catch {
@@ -71,8 +72,9 @@ export default function(req, res, next) {
   // Buscamos as informações da sessão no banco de dados
   let session
   try {
-    session = prisma.session.findUniqueOrThrow({
-      where: { sessid }
+    session = await prisma.session.findUniqueOrThrow({
+      where: { sessid },
+      include: { user: true } // Faz "join" com a tabela de usuários
     })
   }
   catch {
@@ -82,25 +84,22 @@ export default function(req, res, next) {
     return res.status(403).end()
   }
 
-  // Valida o token
-  // jwt.verify(cryptoSessid, process.env.TOKEN_SECRET, (error, user) => {
-
-  //   // Token inválido ou expirado
-  //   // HTTP 403: Forbidden
-  //   if(error) {
-  //     console.error('ERRO: token inválido ou expirado')
-  //     return res.status(403).end()
-  //   }
-
-  //   /*
-  //     Se chegamos até aqui, o token está OK e temos as informações
-  //     do usuário logado no parâmetro 'user'. Vamos guardá-lo no 'req'
-  //     para futura utilização
-  //   */
-  //   req.authUser = user
+  // Verifica se a sessão é válida (não está expirada)
+  const now = new Date()    // Data/hora atuais
+  if(now.getTime() - session.start_time.getTime() > 
+    Number(process.env.SESSION_DURATION)) {
     
-  //   // Continua para a rota normal
-  //   next()
-  // })
+    console.error('ERRO: não autenticado por sessão expirada.')
+    return res.status(403).end()
+  }
+
+  // Sessão OK, armazenamos os dados do usuário recuperados junto com a
+  // sessão em req.authUser para posterior utilização
+  // Obs.: tomamos o cuidado de apagar o campo password
+  if(session.user?.password) delete session.user?.password
+  req.authUser = session.user
+
+  // Continua para a rota normal
+  next()
 
 }
