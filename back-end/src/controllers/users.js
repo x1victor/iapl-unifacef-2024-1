@@ -7,7 +7,6 @@ const controller = {}     // Objeto vazio
 
 controller.create = async function(req, res) {
   try {
-
     // Criptografando a senha
     req.body.password = await bcrypt.hash(req.body.password, 12)
 
@@ -65,7 +64,6 @@ controller.retrieveOne = async function (req, res) {
 
 controller.update = async function (req, res) {
   try {
-
     // Criptografando o campo password caso o valor tenha sido passado
     if(req.body.password) {
       req.body.password = await bcrypt.hash(req.body.password, 12)
@@ -107,7 +105,6 @@ controller.delete = async function (req, res) {
 }
 
 controller.login = async function(req, res) {
-
   try {
     // Busca o usuário pelo username
     const user = await prisma.user.findUnique({
@@ -151,7 +148,6 @@ controller.login = async function(req, res) {
 }
 
 controller.me = function(req, res) {
-
   // Se o usuário autenticado estiver salvo em req,
   // retorna-o
   if(req.authUser) res.send(req.authUser)

@@ -6,7 +6,6 @@ const controller = {}     // Objeto vazio
 
 controller.create = async function(req, res) {
   try {
-
     // Criptografando a senha
     req.body.password = await bcrypt.hash(req.body.password, 12)
 
@@ -64,7 +63,6 @@ controller.retrieveOne = async function (req, res) {
 
 controller.update = async function (req, res) {
   try {
-
     // Criptografando o campo password caso o valor tenha sido passado
     if(req.body.password) {
       req.body.password = await bcrypt.hash(req.body.password, 12)
@@ -106,19 +104,21 @@ controller.delete = async function (req, res) {
 }
 
 controller.login = async function(req, res) {
-
   try {
     // Busca o usuário pelo username
     const user = await prisma.user.findUnique({
       where: { username: req.body.username }
     })
+
     // Se o usuário não for encontrado, retorna
     // HTTP 401: Unauthorized
-    if(! user) return res.status(401).end()
+    if(!user) return res.status(401).end()
+
     // Usuário encontrado, vamos conferir a senha
     const passwordMatches = await bcrypt.compare(req.body.password, user.password)
+
     // Se a senha não confere ~> HTTP 401: Unauthorized
-    if(! passwordMatches) return res.status(401).end()
+    if(!passwordMatches) return res.status(401).end()
 
     // Formamos o token de autenticação para enviar ao front-end
     const token = jwt.sign(
@@ -151,7 +151,6 @@ controller.login = async function(req, res) {
 }
 
 controller.me = function(req, res) {
-
   // Se o usuário autenticado estiver salvo em req,
   // retorna-o
   if(req.authUser) res.send(req.authUser)
@@ -167,3 +166,21 @@ controller.logout = function(req, res) {
 }
 
 export default controller
+
+/*
+ 
+  1. Gerenciamento por Sessão:
+     Sessões armazenam dados no servidor e usam cookies de sessão para autenticar usuários.
+     O servidor valida o cookie de sessão em cada requisição.
+     Este método pode sobrecarregar o servidor com muitos usuários.
+ 
+  2. Gerenciamento por Token JWT:
+      Tokens JWT armazenam dados de autenticação no próprio token.
+      O token é enviado ao cliente, que o inclui nas requisições subsequentes.
+      O servidor valida o token sem armazenar estado, tornando este método mais escalável.
+ 
+  
+     No login (`controller.login`), um token JWT é gerado e enviado como um cookie HTTP-only.
+     O token é usado para autenticar o usuário em requisições subsequentes (`controller.me`).
+     Para logout, o cookie é apagado (`controller.logout`).
+ */
