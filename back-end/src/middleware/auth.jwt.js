@@ -1,157 +1,88 @@
-import prisma from '../database/client.js'
-import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 
-const controller = {}     // Objeto vazio
+// neste método é utilizado o pacote jsonwebtoken para criar e verificar tokens JWT
+// sem a necessidade de armazenar sessões no servidor.
 
-controller.create = async function(req, res) {
-  try {
-    // Criptografando a senha
-    req.body.password = await bcrypt.hash(req.body.password, 12)
-    await prisma.user.create({ data: req.body })
-    // HTTP 201: Created
-    res.status(201).end()
-  }
-  catch(error) {
-    console.error(error)
-    // HTTP 500: Internal Server Error
-    res.status(500).end()
-  }
-}
+// o token é armazenado nos cookies ou no header authorization
 
-controller.retrieveAll = async function(req, res) {
-  try {
-    const result = await prisma.user.findMany()
-    // Deleta o campo "password", para não ser enviado ao front-end
-    for(let user of result) {
-      if(user.password) delete user.password
+// aqui o token é validade apenas com a chave secreta, sem a necessidade de consulta
+// ao banco de dados para cada requisição
+
+export default function(req, res, next) {
+
+  // As rotas que eventualmente não necessitarem
+  // de autenticação devem ser colocadas no
+  // objeto abaixo
+  const bypassRoutes = [
+    { url: '/users/login', method: 'POST' },
+    { url: '/users', method: 'POST' }
+  ]
+  // Verifica se a rota atual está nas exceções
+  // de bypassRoutes. Caso esteja, passa para o
+  // próximo middleware sem verificar a autenticação
+  for(let route of bypassRoutes) {
+    if(route.url === req.url && route.method === req.method) {
+      console.log(`Rota ${route.url}, método ${route.method} não autenticados por exceção`)
+      next()
+      return
     }
-    // HTTP 200: OK (implícito)
-    res.send(result)
   }
-  catch(error) {
-    console.error(error)
-    // HTTP 500: Internal Server Error
-    res.status(500).end()
-  }
-}
-
-controller.retrieveOne = async function (req, res) {
-  try {
-    const result = await prisma.user.findUnique({
-      where: { id: Number(req.params.id)}
-    })
-    // Deleta o campo "password", para não ser enviado ao front-end
-    if(result.password) delete result.password
-    // Encontrou: retorna HTTP 200: OK (implícito)
-    if(result) res.send(result)
-    // Não encontrou: retorna HTTP 404: Not Found
-    else res.status(404).end()
-  }
-  catch(error) {
-    console.error(error)
-    // HTTP 500: Internal Server Error
-    res.status(500).end()
-  }
-}
-
-controller.update = async function (req, res) {
-  try {
-    // Criptografando o campo password caso o valor tenha sido passado
-    if(req.body.password) {
-      req.body.password = await bcrypt.hash(req.body.password, 12)
+  
+  // Para todas as demais rotas, é necessário que o token tenha
+  // sido enviado em um cookie ou no cabeçalho Authorization
+  let token = null
+  console.log({ COOKIE: req.cookies[process.env.AUTH_COOKIE_NAME] })
+  // 1. PROCURA O TOKEN EM UM COOKIE
+  token = req.cookies[process.env.AUTH_COOKIE_NAME]
+  // 2. SE O TOKEN NÃO FOI ENCONTRADO NO COOKIE, PROCURA NO HEADER
+  // DE AUTORIZAÇÃO
+  if(! token) {
+    const authHeader = req.headers['authorization']
+    // O header não existe, o token não foi passado:
+    // HTTP 403: Forbidden
+    if(! authHeader) {
+      console.error('ERRO: não autenticado por falta de cookie ou cabeçalho de autorização')
+      return res.status(403).end()
     }
-    const result = await prisma.user.update({
-      where: { id: Number(req.params.id) },
-      data: req.body
-    })
-    // Encontrou e atualizou ~> HTTP 204: No Content
-    if(result) res.status(204).end()
-    // Não encontrou (e não atualizou) ~> HTTP 404: Not Found
-    else res.status(404).end()
+  
+    // O header Authorization é enviado como uma string
+    // Bearer: XXXX
+    // onde XXXX é o token. Portanto, para extrair o token,
+    // precisamos recortar a string no ponto onde há um espaço
+    // e pegar somente a a segunda parte
+    const [ , _token] = authHeader.split(' ')
+
+    token = _token
+    // no caso de autenticação por sessão aqui seria passado o sessid criptografado
+    // no lugar do token
+
   }
-  catch(error) {
-    console.error(error)
-    // HTTP 500: Internal Server Error
-    res.status(500).end()
-  }
+
+  // Valida o token
+  // a validação no método por sessão seria feita declarando o sessid como variável
+  // descriptografando-a utilizando a chave secreta e consultando no banco de dados
+  // para obter as informações da sessão
+
+  jwt.verify(token, process.env.TOKEN_SECRET, (error, user) => {
+
+    // Token inválido ou expirado
+    // HTTP 403: Forbidden
+    if(error) {
+      console.error('ERRO: token inválido ou expirado')
+      return res.status(403).end()
+    }
+    /*
+      Se chegamos até aqui, o token está OK e temos as informações
+      do usuário logado no parâmetro 'user'. Vamos guardá-lo no 'req'
+      para futura utilização
+      se estivéssemos usando autenticação por sessão, 
+      estaríamos armazenando e gerenciando o estado da sessão no servidor,
+      e o acesso do usuário seria validado por uma identificação única 
+      associada à sessão ativa.
+    */
+    req.authUser = user
+
+    // Continua para a rota normal
+    next()
+  })
 }
-
-controller.delete = async function (req, res) {
-  try {
-    const result = await prisma.user.delete({
-      where: { id: Number(req.params.id) }
-    })
-    // Encontrou e excluiu ~> HTTP 204: No Content
-    if(result) res.status(204).end()
-    // Não encontrou (e não excluiu) ~> HTTP 404: Not Found
-    else res.status(404).end()
-  }
-  catch(error) {
-    console.error(error)
-    // HTTP 500: Internal Server Error
-    res.status(500).end()
-  }
-}
-
-controller.login = async function(req, res) {
-  try {
-    // Busca o usuário pelo username
-    const user = await prisma.user.findUnique({
-      where: { username: req.body.username }
-    })
-    // Se o usuário não for encontrado, retorna
-    // HTTP 401: Unauthorized
-    if(!user) return res.status(401).end()
-    // Usuário encontrado, vamos conferir a senha
-    const passwordMatches = await bcrypt.compare(req.body.password, user.password)
-    // Se a senha não confere ~> HTTP 401: Unauthorized
-    if(!passwordMatches) return res.status(401).end()
-
-    // Formamos o token de autenticação para enviar ao front-end
-    const token = jwt.sign(
-      { id: user.id },   // O token contém as informações do usuário logado
-      process.env.TOKEN_SECRET,   // Senha de criptografia do token
-      { expiresIn: '24h' }        // Prazo de validade do token
-    )
-
-    // Aqui, um token JWT é criado e enviado ao cliente. Diferente das sessões, que armazenam o estado no servidor, o JWT é stateless. Isso significa que o servidor não mantém nenhum estado da sessão, tornando a abordagem mais escalável e facilitando o controle de sessões em serviços distribuídos.
-
-    // Forma o cookie para enviar ao front-end
-    res.cookie(process.env.AUTH_COOKIE_NAME, token, {
-      httpOnly: true,   // O cookie ficará inacessível para JS no front-end
-      secure: true,
-      sameSite: 'None',
-      path: '/',
-      maxAge: 24 * 60 * 60 * 1000   // 24 horas
-    })
-
-    // O token é enviado como um cookie httpOnly, o que ajuda a prevenir ataques XSS.
-    // Em uma sessão tradicional, um cookie de sessão seria enviado e o servidor precisaria verificar esse cookie em um armazenamento de sessão, o que pode aumentar a carga no servidor conforme o número de usuários cresce.
-
-    // HTTP 204: No Content
-    res.status(204).end()
-
-  }
-  catch(error) {
-    console.error(error)
-    // HTTP 500: Internal Server Error
-    res.status(500).end()
-  }
-}
-
-controller.me = function(req, res) {
-  // Se o usuário autenticado estiver salvo em req, retorna
-  if(req.authUser) res.send(req.authUser)
-  // Senão, retorna HTTP 401: Unauthorized
-  else res.status(401).end()
-}
-
-controller.logout = function(req, res) {
-  // Apaga o cookie que armazena o token de autorização
-  res.clearCookie(process.env.AUTH_COOKIE_NAME)
-  // Ao fazer logout, o cookie é apagado. Em sistemas baseados em sessão, Também tem que limpar a sessão do lado do servidor que não é necessário com tokens JWT.
-  res.status(204).end()
-}
-
-export default controller
